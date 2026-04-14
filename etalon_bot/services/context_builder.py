@@ -27,23 +27,34 @@ logger = logging.getLogger(__name__)
 # ── Вспомогательные функции ──
 
 
-async def _compress_point_a(session: AsyncSession, user: User) -> str:
-    """Сжимает ответы Точки А в краткое резюме по сферам (~300 символов на сферу)."""
+async def _compress_point_a(
+    session: AsyncSession, user: User, per_sphere_limit: int | None = 300
+) -> str:
+    """Сжимает ответы Точки А по сферам.
+
+    per_sphere_limit: None = без обрезки (для стратегии), число = лимит в символах (для чата).
+    """
     answers = await get_answers_by_user(session, user.telegram_id)
     if not answers:
         return "Данные Точки А ещё не заполнены."
 
-    by_sphere: dict[int, list[str]] = defaultdict(list)
+    by_sphere: dict[int, list[tuple[str, str]]] = defaultdict(list)
     for a in answers:
         if a.answer_text and not a.is_skipped:
-            by_sphere[a.sphere_number].append(a.answer_text)
+            by_sphere[a.sphere_number].append((a.question_text or "", a.answer_text))
 
     parts: list[str] = []
     for sphere_num in sorted(by_sphere.keys()):
         sphere_name = await get_sphere_name(session, sphere_num)
-        combined = " | ".join(by_sphere[sphere_num])
-        compressed = truncate_text(combined, max_length=300)
-        parts.append(f"  {sphere_name}: {compressed}")
+        if per_sphere_limit is None:
+            qa_lines = [
+                f"    Q: {q}\n    A: {a}" for q, a in by_sphere[sphere_num]
+            ]
+            parts.append(f"  {sphere_name}:\n" + "\n".join(qa_lines))
+        else:
+            combined = " | ".join(a for _, a in by_sphere[sphere_num])
+            compressed = truncate_text(combined, max_length=per_sphere_limit)
+            parts.append(f"  {sphere_name}: {compressed}")
 
     return "\n".join(parts) if parts else "Данные Точки А ещё не заполнены."
 
@@ -166,16 +177,21 @@ _INTERMEDIATE_LABELS = {
 }
 
 
-async def _build_intermediate_data_text(session: AsyncSession, user: User) -> str:
-    """Собирает промежуточные цели и данные клиента."""
+async def _build_intermediate_data_text(
+    session: AsyncSession, user: User, item_limit: int | None = 200
+) -> str:
+    """Собирает промежуточные цели и данные клиента.
+
+    item_limit: None = без обрезки, число = макс символов на запись.
+    """
     items = await get_intermediate_data(session, user.telegram_id)
     if not items:
         return "Промежуточные цели и данные не добавлены."
 
     parts: list[str] = []
-    for item in items[:15]:
+    for item in items if item_limit is None else items[:15]:
         label = _INTERMEDIATE_LABELS.get(item.category, item.category)
-        content = truncate_text(item.content, max_length=200)
+        content = item.content if item_limit is None else truncate_text(item.content, max_length=item_limit)
         parts.append(f"  [{label}] {content}")
 
     return "\n".join(parts)
@@ -341,9 +357,12 @@ async def build_strategy_prompt(
         Кортеж (system_prompt, user_prompt).
     """
     name = user.display_name or user.full_name or "клиент"
-    compressed_point_a = await _compress_point_a(session, user)
+    # Strategy generation uses FULL answers and intermediate data — we want
+    # the LLM to see every detail. Gemini 3 Flash handles 1M tokens of context,
+    # so there's no risk of overflow even for very talkative clients.
+    compressed_point_a = await _compress_point_a(session, user, per_sphere_limit=None)
     etalon_text = await _build_etalon_text(session, user)
-    intermediate_data = await _build_intermediate_data_text(session, user)
+    intermediate_data = await _build_intermediate_data_text(session, user, item_limit=None)
 
     user_prompt = STRATEGY_USER_TEMPLATE.format(
         name=name,
