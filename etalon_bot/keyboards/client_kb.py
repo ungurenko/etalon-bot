@@ -4,7 +4,10 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from etalon_bot.database.models import StageItem
 
 
-def main_menu_kb(onboarding_completed: bool = False) -> InlineKeyboardMarkup:
+def main_menu_kb(
+    onboarding_completed: bool = False,
+    can_gen_strategy: bool = False,
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📋 Мой план", callback_data="menu_plan")
     builder.button(text="📊 Мой прогресс", callback_data="menu_progress")
@@ -13,13 +16,19 @@ def main_menu_kb(onboarding_completed: bool = False) -> InlineKeyboardMarkup:
     builder.button(text="🎯 Промежуточные цели", callback_data="menu_goals")
     builder.button(text="📝 Моя эталонная версия", callback_data="client_etalon_start")
     builder.button(text="🌟 Режим эталонной версии", callback_data="settings_voice_mode")
+    if can_gen_strategy:
+        builder.button(text="✨ Составить стратегию", callback_data="client_gen_strategy")
     if onboarding_completed:
         builder.button(text="📍 Моя Точка А", callback_data="pointa_open")
     builder.button(text="ℹ️ Помощь", callback_data="menu_help")
+
+    rows = [2, 1, 2, 1, 1, 1]
+    if can_gen_strategy:
+        rows.append(1)
     if onboarding_completed:
-        builder.adjust(2, 1, 2, 1, 1, 1, 1)
-    else:
-        builder.adjust(2, 1, 2, 1, 1, 1)
+        rows.append(1)
+    rows.append(1)
+    builder.adjust(*rows)
     return builder.as_markup()
 
 

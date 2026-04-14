@@ -14,8 +14,21 @@ from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from etalon_bot.config import ADMIN_IDS
-from etalon_bot.database.models import UserStatus, OnboardingStatus
+from etalon_bot.database.models import UserStatus, OnboardingStatus, StrategyStatus
 from etalon_bot.database import queries
+
+
+async def _menu_flags(session: AsyncSession, user) -> dict:
+    """Compute which dynamic buttons should appear in main menu."""
+    if user is None:
+        return {"onboarding_completed": False, "can_gen_strategy": False}
+    completed = user.onboarding_status == OnboardingStatus.completed
+    can_gen = (
+        completed
+        and user.strategy_status != StrategyStatus.active
+        and await queries.has_etalon(session, user.telegram_id)
+    )
+    return {"onboarding_completed": completed, "can_gen_strategy": can_gen}
 from etalon_bot.keyboards.client_kb import main_menu_kb, onboarding_start_kb
 from etalon_bot.keyboards.admin_kb import activate_new_user_kb
 
@@ -98,11 +111,10 @@ async def cmd_start(message: Message, bot: Bot, session: AsyncSession, **kwargs)
 
     # Active user
     name = user.display_name or user.full_name or "друг"
+    flags = await _menu_flags(session, user)
     await message.answer(
         f"С возвращением, {name}! 💛",
-        reply_markup=main_menu_kb(
-            onboarding_completed=user.onboarding_status == OnboardingStatus.completed
-        ),
+        reply_markup=main_menu_kb(**flags),
     )
 
 
@@ -134,11 +146,10 @@ async def cmd_menu(message: Message, session: AsyncSession, **kwargs):
         )
         return
 
+    flags = await _menu_flags(session, user)
     await message.answer(
         "Главное меню 🌿",
-        reply_markup=main_menu_kb(
-            onboarding_completed=user.onboarding_status == OnboardingStatus.completed
-        ),
+        reply_markup=main_menu_kb(**flags),
     )
 
 
@@ -229,15 +240,12 @@ async def cb_admin_reject(
 # ── Callback: menu_back ──────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "menu_back")
-async def cb_menu_back(callback: CallbackQuery, **kwargs):
+async def cb_menu_back(callback: CallbackQuery, session: AsyncSession, **kwargs):
     user = kwargs.get("user")
-    completed = (
-        user is not None
-        and user.onboarding_status == OnboardingStatus.completed
-    )
+    flags = await _menu_flags(session, user)
     await callback.message.edit_text(
         "Главное меню 🌿",
-        reply_markup=main_menu_kb(onboarding_completed=completed),
+        reply_markup=main_menu_kb(**flags),
     )
     await callback.answer()
 

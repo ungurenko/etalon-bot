@@ -13,7 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from etalon_bot.config import ADMIN_IDS
-from etalon_bot.database.models import User, OnboardingStatus
+from etalon_bot.database.models import User, OnboardingStatus, StrategyStatus
 from etalon_bot.database.queries import (
     get_etalon_for_user,
     save_etalon_block,
@@ -360,12 +360,23 @@ async def cb_save(
     await state.clear()
 
     builder = InlineKeyboardBuilder()
+    if user.strategy_status != StrategyStatus.active:
+        builder.button(text="✨ Составить стратегию сейчас", callback_data="client_gen_strategy")
     builder.button(text="🔙 Главное меню", callback_data="menu_back")
     builder.adjust(1)
 
+    success_text = "✅ Эталонная версия сохранена!\n\n"
+    if user.strategy_status != StrategyStatus.active:
+        success_text += (
+            "Теперь я могу составить для тебя персональную стратегию развития "
+            "на основе твоей Точки А, эталона и промежуточных целей. "
+            "Хочешь — прямо сейчас ✨"
+        )
+    else:
+        success_text += "Администратор получит уведомление 💫"
+
     await callback.message.edit_text(
-        "✅ Эталонная версия сохранена!\n\n"
-        "Администратор получит уведомление и скоро составит для тебя стратегию 💫",
+        success_text,
         reply_markup=builder.as_markup(),
     )
 
