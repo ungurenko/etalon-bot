@@ -28,7 +28,7 @@ from etalon_bot.services.whisper_service import (
     TranscriptionError,
     FileTooLargeError,
 )
-from etalon_bot.utils.text_utils import split_long_message
+from etalon_bot.utils.text_utils import split_long_message, markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +108,9 @@ async def _process_chat(
         session, user_id, MessageRole.assistant, response, MessageType.text
     )
 
-    # Send response (split if too long)
-    chunks = split_long_message(response)
+    # Send response (convert Markdown → Telegram HTML, split if too long)
+    formatted = markdown_to_telegram_html(response)
+    chunks = split_long_message(formatted)
     for chunk in chunks:
         await last_message.answer(chunk)
 

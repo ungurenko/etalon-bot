@@ -21,7 +21,7 @@ from etalon_bot.services.strategy_service import (
     generate_strategy,
     parse_strategy_to_stages,
 )
-from etalon_bot.utils.text_utils import split_long_message
+from etalon_bot.utils.text_utils import split_long_message, markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +129,10 @@ async def cb_gen_strategy_run(
         current_stage=1,
     )
 
+    formatted_strategy = markdown_to_telegram_html(strategy_text)
     client_message = (
-        f"🌟 {name}, твоя персональная стратегия готова!\n\n"
-        f"{strategy_text}\n\n"
+        f"🌟 <b>{name}</b>, твоя персональная стратегия готова!\n\n"
+        f"{formatted_strategy}\n\n"
         "———\n"
         "Это твоя дорожная карта. Мы будем идти по ней вместе 💫"
     )

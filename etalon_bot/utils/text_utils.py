@@ -1,6 +1,44 @@
-"""Утилиты для работы с текстом: разбивка длинных сообщений, обрезка."""
+"""Утилиты для работы с текстом: разбивка длинных сообщений, обрезка, Markdown → Telegram HTML."""
 
 import re
+
+
+def markdown_to_telegram_html(text: str) -> str:
+    """Конвертирует типичный Markdown-вывод LLM в Telegram HTML.
+
+    Telegram поддерживает: <b>, <i>, <u>, <s>, <code>, <pre>, <blockquote>.
+    Всё остальное (заголовки, списки) остаётся как plain-текст —
+    Telegram рендерит их нормально, звёздочки/подчёркивания вокруг слов мешают.
+    """
+    if not text:
+        return ""
+
+    # 1. Эскейпим HTML-спецсимволы, чтобы случайные "<" или "&" из текста
+    #    не ломали парсер Telegram.
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # 2. Конвертируем Markdown в безопасные HTML-теги (которые мы сами вставляем).
+    # Блоки кода ``` ... ``` (многострочные) -> <pre>
+    text = re.sub(
+        r"```(?:\w+)?\n?(.+?)\n?```",
+        lambda m: "<pre>" + m.group(1) + "</pre>",
+        text,
+        flags=re.DOTALL,
+    )
+    # Жирный: **text**
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text, flags=re.DOTALL)
+    # Подчёркнутый: __text__
+    text = re.sub(r"__(.+?)__", r"<u>\1</u>", text, flags=re.DOTALL)
+    # Курсив: *text* (одиночная звёздочка, не внутри слова)
+    text = re.sub(r"(?<![\*\w])\*([^\*\n]+?)\*(?![\*\w])", r"<i>\1</i>", text)
+    # Курсив: _text_ (одиночное подчёркивание, не внутри слова)
+    text = re.sub(r"(?<![_\w])_([^_\n]+?)_(?![_\w])", r"<i>\1</i>", text)
+    # Инлайн-код: `text`
+    text = re.sub(r"`([^`\n]+?)`", r"<code>\1</code>", text)
+    # Заголовки Markdown (### Header) — в Telegram нет заголовков, делаем жирным
+    text = re.sub(r"^#{1,6}\s+(.+?)\s*$", r"<b>\1</b>", text, flags=re.MULTILINE)
+
+    return text
 
 
 def split_long_message(text: str, max_length: int = 4096) -> list[str]:

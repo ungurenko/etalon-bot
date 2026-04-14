@@ -12,7 +12,7 @@ from etalon_bot.database.queries import (
 from etalon_bot.database.models import MessageRole, MessageType, StrategyStatus
 from etalon_bot.services.context_builder import build_checkin_prompt
 from etalon_bot.services.llm_service import call_llm, LLMError
-from etalon_bot.utils.text_utils import split_long_message
+from etalon_bot.utils.text_utils import split_long_message, markdown_to_telegram_html
 from etalon_bot.keyboards.client_kb import checkin_items_kb
 
 logger = logging.getLogger("etalon_bot.checkin")
@@ -85,7 +85,8 @@ async def _send_checkin(bot: Bot, session, user):
         for item in items
     ]
 
-    for chunk in split_long_message(checkin_text):
+    formatted = markdown_to_telegram_html(checkin_text)
+    for chunk in split_long_message(formatted):
         await bot.send_message(user.telegram_id, chunk)
 
     await bot.send_message(
