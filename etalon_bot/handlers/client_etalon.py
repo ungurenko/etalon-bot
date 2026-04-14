@@ -1,6 +1,7 @@
 """Загрузка эталонной версии клиентом."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from aiogram import Router, F, Bot
@@ -38,6 +39,15 @@ class ClientEtalonFSM(StatesGroup):
     entering_block = State()
     preview = State()
     editing_block = State()
+
+
+# Freeform batching: Telegram (and the user's clipboard) may split a long
+# etalon description into multiple messages within a few hundred ms. We
+# accumulate fragments and trigger a single LLM call after a quiet period
+# so we don't fire 5 parallel requests and hit the provider rate limit.
+FREEFORM_BATCH_DELAY_SECONDS = 5
+_freeform_batch_tasks: dict[int, asyncio.Task] = {}
+_freeform_batches: dict[int, dict] = {}
 
 
 # ── Keyboards ──
@@ -153,12 +163,14 @@ async def cb_freeform(
     try:
         await callback.message.edit_text(
             "🎙 Запиши голосовое или напиши текстом описание своей эталонной версии.\n\n"
-            "Опиши свободно — я структурирую по 7 блокам."
+            "Опиши свободно — я структурирую по 7 блокам.\n\n"
+            "💡 Если текст длинный и ты отправишь его несколькими сообщениями — ничего страшного, я соберу всё вместе."
         )
     except Exception:
         await callback.message.answer(
             "🎙 Запиши голосовое или напиши текстом описание своей эталонной версии.\n\n"
-            "Опиши свободно — я структурирую по 7 блокам."
+            "Опиши свободно — я структурирую по 7 блокам.\n\n"
+            "💡 Если текст длинный и ты отправишь его несколькими сообщениями — ничего страшного, я соберу всё вместе."
         )
     await callback.answer()
 
@@ -179,11 +191,43 @@ async def on_freeform_voice(
     await _structure_and_preview(message, state, raw_text, bot)
 
 
+async def _flush_freeform_batch(user_id: int, state: FSMContext, bot: Bot):
+    try:
+        await asyncio.sleep(FREEFORM_BATCH_DELAY_SECONDS)
+    except asyncio.CancelledError:
+        return
+
+    _freeform_batch_tasks.pop(user_id, None)
+    batch = _freeform_batches.pop(user_id, None)
+    if not batch or not batch.get("fragments"):
+        return
+
+    full_text = "\n".join(batch["fragments"]).strip()
+    if not full_text:
+        return
+
+    last_message: Message = batch["last_message"]
+    await _structure_and_preview(last_message, state, full_text, bot)
+
+
 @router.message(ClientEtalonFSM.waiting_freeform, F.text)
 async def on_freeform_text(
     message: Message, user: User, state: FSMContext, bot: Bot, **kwargs
 ):
-    await _structure_and_preview(message, state, message.text.strip(), bot)
+    user_id = message.from_user.id
+    batch = _freeform_batches.setdefault(
+        user_id, {"fragments": [], "last_message": None}
+    )
+    batch["fragments"].append(message.text.strip())
+    batch["last_message"] = message
+
+    old_task = _freeform_batch_tasks.get(user_id)
+    if old_task and not old_task.done():
+        old_task.cancel()
+
+    _freeform_batch_tasks[user_id] = asyncio.create_task(
+        _flush_freeform_batch(user_id, state, bot)
+    )
 
 
 async def _structure_and_preview(
