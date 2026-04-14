@@ -241,7 +241,9 @@ async def _structure_and_preview(
 
     try:
         system_prompt, user_prompt = build_structure_etalon_prompt(raw_text)
-        llm_response = await call_llm(system_prompt, user_prompt, max_tokens=2000)
+        llm_response = await call_llm(
+            system_prompt, user_prompt, max_tokens=2000, timeout=120
+        )
     except LLMError as e:
         logger.error("LLM error: %s", e)
         await message.answer(

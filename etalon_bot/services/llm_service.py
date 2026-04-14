@@ -33,6 +33,7 @@ async def call_llm(
     system_prompt: str,
     user_prompt: str,
     max_tokens: int = 1500,
+    timeout: int = REQUEST_TIMEOUT,
 ) -> str:
     """Отправляет запрос к LLM через OpenRouter.
 
@@ -73,7 +74,7 @@ async def call_llm(
                     OPENROUTER_URL,
                     json=payload,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
+                    timeout=aiohttp.ClientTimeout(total=timeout),
                 ) as resp:
                     body = await resp.json()
 
@@ -131,11 +132,11 @@ async def call_llm(
             except asyncio.TimeoutError:
                 logger.warning(
                     "LLM timeout (%ds), попытка %d/2",
-                    REQUEST_TIMEOUT,
+                    timeout,
                     attempt + 1,
                 )
                 last_error = LLMError(
-                    f"Таймаут запроса к LLM ({REQUEST_TIMEOUT}s)"
+                    f"Таймаут запроса к LLM ({timeout}s)"
                 )
                 if attempt < 2:
                     continue
