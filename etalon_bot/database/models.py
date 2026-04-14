@@ -81,6 +81,7 @@ class User(Base):
     current_stage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     photo_file_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     bot_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    etalon_voice_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     access_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_activity_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

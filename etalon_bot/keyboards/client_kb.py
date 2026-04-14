@@ -12,14 +12,14 @@ def main_menu_kb(onboarding_completed: bool = False) -> InlineKeyboardMarkup:
     builder.button(text="📚 Практики", callback_data="menu_practices")
     builder.button(text="🎯 Промежуточные цели", callback_data="menu_goals")
     builder.button(text="📝 Моя эталонная версия", callback_data="client_etalon_start")
+    builder.button(text="🌟 Режим эталонной версии", callback_data="settings_voice_mode")
     if onboarding_completed:
         builder.button(text="📍 Моя Точка А", callback_data="pointa_open")
     builder.button(text="ℹ️ Помощь", callback_data="menu_help")
     if onboarding_completed:
-        # 2, 1, 2, 1, 1, 1 (добавилась строка с Точкой А перед Помощью)
-        builder.adjust(2, 1, 2, 1, 1, 1)
+        builder.adjust(2, 1, 2, 1, 1, 1, 1)
     else:
-        builder.adjust(2, 1, 2, 1, 1)
+        builder.adjust(2, 1, 2, 1, 1, 1)
     return builder.as_markup()
 
 

@@ -8,6 +8,19 @@
 - `docker build -t etalon-bot etalon_bot/` — сборка Docker-образа
 - Деплой: Railway с Volume `/data/` для SQLite
 
+## Deployment
+
+**Railway (production):**
+- Project: `etalon-bot` — https://railway.com/project/11a28220-e5d9-4ba9-a564-4e72fa4baa65
+- Service: `etalon-bot` (polling-режим, Dockerfile builder)
+- Volume: `etalon-bot-volume` смонтирован на `/data/` (SQLite persistent)
+- Bot: @test_ung1bot
+- Конфиг: `Dockerfile` и `railway.json` в корне репо
+- Auth для CLI: `export RAILWAY_API_TOKEN=<account-token>` (login через браузер ломается из-за бага keychain)
+- Редеплой: `railway up --ci` из корня (после `railway link` к проекту etalon-bot)
+
+**GitHub:** https://github.com/ungurenko/etalon-bot (private)
+
 ## Architecture
 
 | Path | Purpose |

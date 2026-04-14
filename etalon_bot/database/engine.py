@@ -19,6 +19,7 @@ SessionFactory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commi
 _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN gender VARCHAR(20)",
     "ALTER TABLE users ADD COLUMN access_until DATETIME",
+    "ALTER TABLE users ADD COLUMN etalon_voice_mode BOOLEAN NOT NULL DEFAULT 0",
 ]
 
 

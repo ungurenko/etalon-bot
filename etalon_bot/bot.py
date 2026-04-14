@@ -27,6 +27,7 @@ from etalon_bot.handlers import (
     client_goals_router,
     client_etalon_router,
     client_pointa_router,
+    client_settings_router,
     chat_router,
 )
 from etalon_bot.scheduler.jobs import setup_scheduler
@@ -90,6 +91,7 @@ def main():
     dp.include_router(client_goals_router)
     dp.include_router(client_etalon_router)
     dp.include_router(client_pointa_router)
+    dp.include_router(client_settings_router)
     dp.include_router(chat_router)  # catch-all — last
 
     dp.startup.register(on_startup)

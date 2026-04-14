@@ -198,6 +198,23 @@ async def delete_etalon_for_user(session: AsyncSession, user_id: int):
     await session.commit()
 
 
+async def has_etalon(session: AsyncSession, user_id: int) -> bool:
+    result = await session.scalar(
+        select(func.count()).select_from(EtalonVersion).where(
+            EtalonVersion.user_id == user_id,
+            EtalonVersion.content != "",
+        )
+    )
+    return (result or 0) > 0
+
+
+async def set_etalon_voice_mode(session: AsyncSession, user_id: int, enabled: bool):
+    await session.execute(
+        update(User).where(User.telegram_id == user_id).values(etalon_voice_mode=enabled)
+    )
+    await session.commit()
+
+
 # ── Strategies ──
 
 async def save_strategy(session: AsyncSession, user_id: int, full_text: str) -> Strategy:
