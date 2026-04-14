@@ -34,6 +34,7 @@ async def call_llm(
     user_prompt: str,
     max_tokens: int = 1500,
     timeout: int = REQUEST_TIMEOUT,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Отправляет запрос к LLM через OpenRouter.
 
@@ -64,6 +65,8 @@ async def call_llm(
         "max_tokens": max_tokens,
         "temperature": 0.7,
     }
+    if reasoning_effort:
+        payload["reasoning"] = {"effort": reasoning_effort, "exclude": True}
 
     last_error: Exception | None = None
 

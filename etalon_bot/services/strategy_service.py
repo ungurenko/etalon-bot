@@ -123,6 +123,8 @@ async def generate_strategy(session: AsyncSession, user: User) -> str:
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         max_tokens=3000,
+        timeout=180,
+        reasoning_effort="high",
     )
 
     logger.info(
