@@ -13,6 +13,10 @@ OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemma-4-31b-it:fre
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
+KIE_API_KEY = os.environ.get("KIE_API_KEY", "")
+KIE_IMAGE_MODEL = os.environ.get("KIE_IMAGE_MODEL", "gpt-image/1.5-text-to-image")
+KIE_IMAGE_QUALITY = os.environ.get("KIE_IMAGE_QUALITY", "medium")
+
 DB_PATH = os.environ.get("DB_PATH", "data/etalon_bot.db")
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
