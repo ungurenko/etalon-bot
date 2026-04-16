@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from etalon_bot.config import ADMIN_IDS
 from etalon_bot.database import queries
 from etalon_bot.database.models import (
+    ImageMoment,
     OnboardingStatus,
     StrategyStatus,
     User,
@@ -21,6 +22,7 @@ from etalon_bot.services.strategy_service import (
     generate_strategy,
     parse_strategy_to_stages,
 )
+from etalon_bot.services.image_service import fire_and_forget_moment
 from etalon_bot.utils.text_utils import split_long_message, markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
@@ -143,6 +145,14 @@ async def cb_gen_strategy_run(
             await callback.message.answer(chunk, reply_markup=strategy_received_kb())
         else:
             await callback.message.answer(chunk)
+
+    # Мудборд «дорожной карты» — в фоне, догонит сообщение со стратегией
+    fire_and_forget_moment(
+        bot,
+        user,
+        ImageMoment.strategy_ready,
+        caption="🌿 Визуализация твоего пути",
+    )
 
     uname = f"@{user.username}" if user.username else ""
     admin_text = (

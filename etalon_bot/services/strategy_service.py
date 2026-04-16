@@ -82,6 +82,18 @@ async def _delayed_regen(bot: Bot, user_id: int) -> None:
             for chunk in split_long_message(full_message):
                 await bot.send_message(user_id, chunk)
 
+            # Обновлённая стратегия → обновлённый мудборд дорожной карты
+            from etalon_bot.database.models import ImageMoment
+            from etalon_bot.services.image_service import send_image_for_moment
+            try:
+                await send_image_for_moment(
+                    bot, session, user, ImageMoment.strategy_ready,
+                    caption="🌿 Обновлённая визуализация пути",
+                    force_regenerate=True,
+                )
+            except Exception as exc:
+                logger.warning("Не удалось обновить картинку стратегии для %d: %s", user_id, exc)
+
             logger.info("Strategy regenerated for user %d", user_id)
 
     except asyncio.CancelledError:

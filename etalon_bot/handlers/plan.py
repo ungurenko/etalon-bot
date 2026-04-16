@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from etalon_bot.config import ADMIN_IDS
 from etalon_bot.database import queries
+from etalon_bot.database.models import ImageMoment
 from etalon_bot.keyboards.client_kb import plan_view_kb
+from etalon_bot.services.image_service import fire_and_forget_moment
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +180,13 @@ async def cb_plan_save(
             await callback.message.answer(
                 f"🎉 Невероятно, {name}! Ты выполнила все этапы стратегии!\n\n"
                 "Это огромное достижение. Поздравляю! 🌟"
+            )
+            # Финальный мудборд — празднование всего пути
+            fire_and_forget_moment(
+                bot,
+                user,
+                ImageMoment.strategy_completed,
+                caption="🌟 Твоя точка прибытия",
             )
 
         # Notify admins

@@ -13,7 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from etalon_bot.config import ADMIN_IDS
-from etalon_bot.database.models import User, OnboardingStatus, StrategyStatus
+from etalon_bot.database.models import User, OnboardingStatus, StrategyStatus, ImageMoment
 from etalon_bot.database.queries import (
     get_etalon_for_user,
     save_etalon_block,
@@ -28,6 +28,7 @@ from etalon_bot.services.etalon_service import (
 from etalon_bot.services.whisper_service import transcribe_voice
 from etalon_bot.services.llm_service import call_llm, LLMError
 from etalon_bot.services.context_builder import build_structure_etalon_prompt
+from etalon_bot.services.image_service import fire_and_forget_moment
 
 logger = logging.getLogger(__name__)
 
@@ -378,6 +379,14 @@ async def cb_save(
     await callback.message.edit_text(
         success_text,
         reply_markup=builder.as_markup(),
+    )
+
+    # Вдохновляющая картинка-мудборд эталонной версии (в фоне, не блокирует UX)
+    fire_and_forget_moment(
+        bot,
+        user,
+        ImageMoment.etalon_ready,
+        caption="✨ Образ твоей эталонной версии",
     )
 
     # Notify admins

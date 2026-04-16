@@ -60,6 +60,12 @@ class KBCategory(str, enum.Enum):
     material = "material"
 
 
+class ImageMoment(str, enum.Enum):
+    etalon_ready = "etalon_ready"
+    strategy_ready = "strategy_ready"
+    strategy_completed = "strategy_completed"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -244,6 +250,21 @@ class BotSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+class GeneratedImage(Base):
+    __tablename__ = "generated_images"
+    __table_args__ = (
+        Index("ix_genimg_user_moment", "user_id", "moment"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.telegram_id"))
+    moment: Mapped[ImageMoment] = mapped_column(Enum(ImageMoment))
+    file_id: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    source_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class OnboardingQuestion(Base):
