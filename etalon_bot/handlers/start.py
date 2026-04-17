@@ -21,14 +21,24 @@ from etalon_bot.database import queries
 async def _menu_flags(session: AsyncSession, user) -> dict:
     """Compute which dynamic buttons should appear in main menu."""
     if user is None:
-        return {"onboarding_completed": False, "can_gen_strategy": False}
+        return {
+            "onboarding_completed": False,
+            "can_gen_strategy": False,
+            "can_make_period_plan": False,
+        }
     completed = user.onboarding_status == OnboardingStatus.completed
+    has_etalon = completed and await queries.has_etalon(session, user.telegram_id)
     can_gen = (
-        completed
+        has_etalon
         and user.strategy_status != StrategyStatus.active
-        and await queries.has_etalon(session, user.telegram_id)
     )
-    return {"onboarding_completed": completed, "can_gen_strategy": can_gen}
+    return {
+        "onboarding_completed": completed,
+        "can_gen_strategy": can_gen,
+        # Период-план доступен, когда есть Точка А и эталон — он дополняет
+        # стратегию и не противоречит ей.
+        "can_make_period_plan": has_etalon,
+    }
 from etalon_bot.keyboards.client_kb import main_menu_kb, onboarding_start_kb
 from etalon_bot.keyboards.admin_kb import activate_new_user_kb
 

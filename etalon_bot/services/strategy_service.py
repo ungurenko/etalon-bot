@@ -15,7 +15,10 @@ from etalon_bot.database.queries import (
     save_strategy,
     update_user_field,
 )
-from etalon_bot.services.context_builder import build_strategy_prompt
+from etalon_bot.services.context_builder import (
+    build_period_plan_prompt,
+    build_strategy_prompt,
+)
 from etalon_bot.services.llm_service import call_llm
 from etalon_bot.utils.text_utils import split_long_message
 
@@ -141,6 +144,47 @@ async def generate_strategy(session: AsyncSession, user: User) -> str:
 
     logger.info(
         "Стратегия сгенерирована для пользователя %d: %d символов",
+        user.telegram_id,
+        len(text),
+    )
+
+    return text
+
+
+async def generate_period_plan(
+    session: AsyncSession, user: User, period_label: str
+) -> str:
+    """Генерирует план на произвольный период с охватом всех 8 сфер.
+
+    Args:
+        session: Асинхронная сессия БД.
+        user: Объект пользователя.
+        period_label: Человекочитаемая длительность (например, «45 дней»,
+            «3 месяца», «до сентября»).
+
+    Returns:
+        Полный текст плана от LLM.
+    """
+    system_prompt, user_prompt = await build_period_plan_prompt(
+        session, user, period_label
+    )
+
+    logger.info(
+        "Генерация плана на период '%s' для пользователя %d",
+        period_label,
+        user.telegram_id,
+    )
+
+    text = await call_llm(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        max_tokens=3000,
+        timeout=180,
+        reasoning_effort="high",
+    )
+
+    logger.info(
+        "План на период сгенерирован для пользователя %d: %d символов",
         user.telegram_id,
         len(text),
     )

@@ -23,6 +23,7 @@ from etalon_bot.handlers.client_etalon import router as client_etalon_router
 from etalon_bot.handlers.client_pointa import router as client_pointa_router
 from etalon_bot.handlers.client_settings import router as client_settings_router
 from etalon_bot.handlers.client_strategy import router as client_strategy_router
+from etalon_bot.handlers.client_period_plan import router as client_period_plan_router
 from etalon_bot.handlers.chat import router as chat_router
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     "client_pointa_router",
     "client_settings_router",
     "client_strategy_router",
+    "client_period_plan_router",
     "chat_router",
 ]
