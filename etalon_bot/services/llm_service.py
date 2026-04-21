@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 
 import aiohttp
 
@@ -17,6 +18,23 @@ REQUEST_TIMEOUT = 30  # секунд
 
 class LLMError(Exception):
     """Ошибка при обращении к LLM."""
+
+
+def _format_openrouter_error(status: int, body: dict) -> str:
+    """Делает ошибки OpenRouter понятнее для типовых случаев."""
+    error_msg = body.get("error", {}).get("message", str(body))
+    normalized = error_msg.lower()
+
+    if status == 402 or any(
+        marker in normalized
+        for marker in ("insufficient", "credit", "balance", "payment required")
+    ):
+        return (
+            "На OpenRouter не хватает баланса для платной модели "
+            "или не включена оплата. Пополни баланс и повтори попытку."
+        )
+
+    return f"OpenRouter API error {status}: {error_msg}"
 
 
 def _strip_markdown_wrapper(text: str) -> str:
@@ -69,6 +87,7 @@ async def call_llm(
         payload["reasoning"] = {"effort": reasoning_effort, "exclude": True}
 
     last_error: Exception | None = None
+    started_at = time.perf_counter()
 
     async with aiohttp.ClientSession() as client:
         for attempt in range(4):  # до 4 попыток (1 основная + 3 ретрая)
@@ -89,16 +108,31 @@ async def call_llm(
                             .get("content", "")
                         )
                         if not content:
+                            logger.error(
+                                "LLM returned empty response: model=%s attempt=%d",
+                                OPENROUTER_MODEL,
+                                attempt + 1,
+                            )
                             raise LLMError("LLM вернул пустой ответ")
+                        elapsed_ms = (time.perf_counter() - started_at) * 1000
+                        logger.info(
+                            "LLM success: model=%s attempt=%d response_len=%d elapsed=%.1fms",
+                            OPENROUTER_MODEL,
+                            attempt + 1,
+                            len(content),
+                            elapsed_ms,
+                        )
                         return _strip_markdown_wrapper(content)
 
                     # 429 — rate limit
                     if resp.status == 429:
                         wait = 5
                         logger.warning(
-                            "LLM rate limit (429), попытка %d/3, жду %ds",
+                            "LLM rate limit: model=%s status=429 attempt=%d wait=%ds error=%s",
+                            OPENROUTER_MODEL,
                             attempt + 1,
                             wait,
+                            body.get("error", {}).get("message", ""),
                         )
                         last_error = LLMError(
                             f"Rate limit 429: {body.get('error', {}).get('message', '')}"
@@ -112,10 +146,12 @@ async def call_llm(
                     if resp.status in (500, 502, 503):
                         wait = 10
                         logger.warning(
-                            "LLM server error (%d), попытка %d/3, жду %ds",
+                            "LLM server error: model=%s status=%d attempt=%d wait=%ds error=%s",
+                            OPENROUTER_MODEL,
                             resp.status,
                             attempt + 1,
                             wait,
+                            body.get("error", {}).get("message", ""),
                         )
                         last_error = LLMError(
                             f"Server error {resp.status}: "
@@ -127,14 +163,18 @@ async def call_llm(
                         raise last_error
 
                     # Другие ошибки — не ретраим
-                    error_msg = body.get("error", {}).get("message", str(body))
-                    raise LLMError(
-                        f"OpenRouter API error {resp.status}: {error_msg}"
+                    logger.error(
+                        "LLM request failed: model=%s status=%d error=%s",
+                        OPENROUTER_MODEL,
+                        resp.status,
+                        body.get("error", {}).get("message", str(body)),
                     )
+                    raise LLMError(_format_openrouter_error(resp.status, body))
 
             except asyncio.TimeoutError:
                 logger.warning(
-                    "LLM timeout (%ds), попытка %d/2",
+                    "LLM timeout: model=%s timeout=%ds attempt=%d",
+                    OPENROUTER_MODEL,
                     timeout,
                     attempt + 1,
                 )
@@ -146,7 +186,11 @@ async def call_llm(
                 raise last_error
 
             except aiohttp.ClientError as e:
-                logger.error("Ошибка сети при обращении к LLM: %s", e)
+                logger.error(
+                    "Ошибка сети при обращении к LLM: model=%s error=%s",
+                    OPENROUTER_MODEL,
+                    e,
+                )
                 raise LLMError(f"Ошибка сети: {e}") from e
 
     raise last_error or LLMError("Неизвестная ошибка LLM")
