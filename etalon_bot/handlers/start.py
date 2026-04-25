@@ -14,35 +14,19 @@ from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from etalon_bot.config import ADMIN_IDS
-from etalon_bot.database.models import UserStatus, OnboardingStatus, StrategyStatus
+from etalon_bot.database.models import UserStatus, OnboardingStatus
 from etalon_bot.database import queries
-
-
-async def _menu_flags(session: AsyncSession, user) -> dict:
-    """Compute which dynamic buttons should appear in main menu."""
-    if user is None:
-        return {
-            "onboarding_completed": False,
-            "can_gen_strategy": False,
-            "can_make_period_plan": False,
-        }
-    completed = user.onboarding_status == OnboardingStatus.completed
-    has_etalon = completed and await queries.has_etalon(session, user.telegram_id)
-    can_gen = (
-        has_etalon
-        and user.strategy_status != StrategyStatus.active
-    )
-    return {
-        "onboarding_completed": completed,
-        "can_gen_strategy": can_gen,
-        # Период-план доступен, когда есть Точка А и эталон — он дополняет
-        # стратегию и не противоречит ей.
-        "can_make_period_plan": has_etalon,
-    }
+from etalon_bot.services.menu import compute_menu_flags
 from etalon_bot.keyboards.client_kb import main_menu_kb, onboarding_start_kb
 from etalon_bot.keyboards.admin_kb import activate_new_user_kb
 
 logger = logging.getLogger(__name__)
+
+# Global commands router — только /start, /help, /menu.
+# Регистрируется ПЕРВЫМ в Dispatcher: команды перехватываются раньше, чем
+# любые FSM-хендлеры (онбординг, ввод эталона, админские формы и т.д.),
+# чтобы пользователь всегда мог выйти в меню из любого состояния.
+commands_router = Router(name="global_commands")
 
 router = Router(name="start")
 
@@ -86,8 +70,16 @@ async def _notify_admins_new_user(
 
 # ── /start ───────────────────────────────────────────────────────────────────
 
-@router.message(CommandStart())
-async def cmd_start(message: Message, bot: Bot, session: AsyncSession, **kwargs):
+@commands_router.message(CommandStart())
+async def cmd_start(
+    message: Message,
+    bot: Bot,
+    state: FSMContext,
+    session: AsyncSession,
+    **kwargs,
+):
+    # /start всегда сбрасывает любое FSM-состояние — это точка входа.
+    await state.clear()
     user = kwargs.get("user")
     tg_id = message.from_user.id
 
@@ -121,7 +113,7 @@ async def cmd_start(message: Message, bot: Bot, session: AsyncSession, **kwargs)
 
     # Active user
     name = user.display_name or user.full_name or "друг"
-    flags = await _menu_flags(session, user)
+    flags = await compute_menu_flags(session, user)
     await message.answer(
         f"С возвращением, {name}! 💛",
         reply_markup=main_menu_kb(**flags),
@@ -130,15 +122,25 @@ async def cmd_start(message: Message, bot: Bot, session: AsyncSession, **kwargs)
 
 # ── /help ────────────────────────────────────────────────────────────────────
 
-@router.message(Command("help"))
+@commands_router.message(Command("help"))
 async def cmd_help(message: Message, **kwargs):
+    # /help не сбрасывает FSM — это просто справка, пользователь может
+    # продолжить то, что делал.
     await message.answer(HELP_TEXT, parse_mode="HTML")
 
 
 # ── /menu ────────────────────────────────────────────────────────────────────
 
-@router.message(Command("menu"))
-async def cmd_menu(message: Message, session: AsyncSession, **kwargs):
+@commands_router.message(Command("menu"))
+async def cmd_menu(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    **kwargs,
+):
+    # /menu всегда выводит пользователя в главное меню из любого состояния.
+    await state.clear()
+
     user = kwargs.get("user")
     if user is None:
         await message.answer("Сначала напиши /start 🙏")
@@ -156,7 +158,7 @@ async def cmd_menu(message: Message, session: AsyncSession, **kwargs):
         )
         return
 
-    flags = await _menu_flags(session, user)
+    flags = await compute_menu_flags(session, user)
     await message.answer(
         "Главное меню 🌿",
         reply_markup=main_menu_kb(**flags),
@@ -252,7 +254,7 @@ async def cb_admin_reject(
 @router.callback_query(F.data == "menu_back")
 async def cb_menu_back(callback: CallbackQuery, session: AsyncSession, **kwargs):
     user = kwargs.get("user")
-    flags = await _menu_flags(session, user)
+    flags = await compute_menu_flags(session, user)
     await callback.message.edit_text(
         "Главное меню 🌿",
         reply_markup=main_menu_kb(**flags),
