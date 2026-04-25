@@ -6,6 +6,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand, BotCommandScopeDefault, MenuButtonCommands
 
 from etalon_bot.config import BOT_TOKEN, LOG_LEVEL, ADMIN_IDS
 from etalon_bot.database.engine import init_db, SessionFactory
@@ -14,6 +15,7 @@ from etalon_bot.middlewares.auth import AuthMiddleware
 from etalon_bot.middlewares.rate_limit import RateLimitMiddleware
 from etalon_bot.middlewares.logging_mw import LoggingMiddleware
 from etalon_bot.handlers import (
+    commands_router,
     admin_main_router,
     admin_clients_router,
     admin_etalon_router,
@@ -51,6 +53,22 @@ async def on_startup(bot: Bot):
 
     logger.info("Database initialized.")
 
+    # Регистрируем команды в Telegram, чтобы появилась нативная кнопка «Menu»
+    # слева от поля ввода — из любого состояния можно одним тапом попасть
+    # в главное меню.
+    try:
+        await bot.set_my_commands(
+            [
+                BotCommand(command="menu", description="🏠 Главное меню"),
+                BotCommand(command="help", description="ℹ️ Справка"),
+                BotCommand(command="start", description="Перезапустить"),
+            ],
+            scope=BotCommandScopeDefault(),
+        )
+        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception as exc:
+        logger.warning("Failed to set bot commands / menu button: %s", exc)
+
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(admin_id, "🟢 Бот запущен и готов к работе.")
@@ -79,7 +97,8 @@ def main():
     dp.message.outer_middleware(AuthMiddleware())
     dp.callback_query.outer_middleware(AuthMiddleware())
 
-    # Register routers (order matters: admin first, chat last)
+    # Register routers (order matters: global commands first, chat last)
+    dp.include_router(commands_router)  # /start, /help, /menu — перехват до любых FSM
     dp.include_router(admin_main_router)
     dp.include_router(admin_clients_router)
     dp.include_router(admin_etalon_router)

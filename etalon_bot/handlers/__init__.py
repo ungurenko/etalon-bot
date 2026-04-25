@@ -1,13 +1,15 @@
 """
 Handler routers — register in order of priority.
 
-Admin routers go first (they filter by admin role).
-start      → commands, admin activation, menu callbacks
+commands   → /start, /help, /menu (register FIRST — override any FSM state)
+Admin routers go next (they filter by admin role).
+start      → admin activation, menu callbacks
 onboarding → FSM-driven onboarding flow
 plan       → strategy plan viewing and progress
 chat       → catch-all free dialog (lowest priority, register LAST)
 """
 
+from etalon_bot.handlers.start import commands_router
 from etalon_bot.handlers.admin_main import router as admin_main_router
 from etalon_bot.handlers.admin_clients import router as admin_clients_router
 from etalon_bot.handlers.admin_etalon import router as admin_etalon_router
@@ -27,6 +29,7 @@ from etalon_bot.handlers.client_period_plan import router as client_period_plan_
 from etalon_bot.handlers.chat import router as chat_router
 
 __all__ = [
+    "commands_router",
     "admin_main_router",
     "admin_clients_router",
     "admin_etalon_router",

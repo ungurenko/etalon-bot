@@ -47,6 +47,11 @@ def _strip_markdown_wrapper(text: str) -> str:
     return stripped
 
 
+def _sanitize_llm_output(text: str) -> str:
+    """Приводит ответ модели к правилам текста для клиента."""
+    return text.replace("—", "-").replace("–", "-")
+
+
 async def call_llm(
     system_prompt: str,
     user_prompt: str,
@@ -122,7 +127,7 @@ async def call_llm(
                             len(content),
                             elapsed_ms,
                         )
-                        return _strip_markdown_wrapper(content)
+                        return _sanitize_llm_output(_strip_markdown_wrapper(content))
 
                     # 429 — rate limit
                     if resp.status == 429:
