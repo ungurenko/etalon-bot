@@ -14,7 +14,7 @@ from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from etalon_bot.config import ADMIN_IDS
-from etalon_bot.database.models import UserStatus, OnboardingStatus
+from etalon_bot.database.models import UserStatus, OnboardingStatus, UserRole
 from etalon_bot.database import queries
 from etalon_bot.services.menu import compute_menu_flags
 from etalon_bot.keyboards.client_kb import main_menu_kb, onboarding_start_kb
@@ -94,6 +94,15 @@ async def cmd_start(
                 full_name=message.from_user.full_name or "",
             )
 
+    # Auto-activate known admins on first launch
+    if tg_id in ADMIN_IDS and user.role != UserRole.admin:
+        await queries.update_user_field(
+            session, tg_id,
+            role=UserRole.admin,
+            status=UserStatus.active,
+        )
+        user = await queries.get_user(session, tg_id)
+
     if user.status == UserStatus.pending:
         await message.answer(
             "Привет! 🌸\n\n"
@@ -113,6 +122,17 @@ async def cmd_start(
 
     # Active user
     name = user.display_name or user.full_name or "друг"
+    if user.onboarding_status == OnboardingStatus.not_started:
+        await message.answer(
+            f"Привет, {name}! 🌸\n\n"
+            "Давай начнём с небольшого знакомства — "
+            "я задам тебе вопросы по 8 сферам жизни, чтобы понять, "
+            "где ты сейчас.\n\n"
+            "Это займёт около 15-20 минут. Можно делать паузы 💛",
+            reply_markup=onboarding_start_kb(),
+        )
+        return
+
     flags = await compute_menu_flags(session, user)
     await message.answer(
         f"С возвращением, {name}! 💛",
